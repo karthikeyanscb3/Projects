@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Optimization Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4a6fa5; --primary-dark: #3a5a85; --secondary: #166088; --accent: #4fc6e0;
+            --accent-light: #7fd8ec; --background: #f5f7fa; --card-bg: #ffffff; --text: #333;
+            --light-text: #666; --border: #e0e6ed; --success: #4CAF50; --warning: #FFC107; --danger: #F44336;
+            --agent-color: #e67e22;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, var(--background) 0%, #e3edf7 100%);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            grid-template-rows: auto 1fr auto;
+            grid-template-areas:
+                "header header"
+                "controls visualization"
+                "metrics metrics";
+            gap: 20px;
+        }
+        
+        .header {
+            grid-area: header;
+            background: linear-gradient(120deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+        
+        .header h1 { font-weight: 700; font-size: 28px; letter-spacing: 0.5px; }
+        .header-info { display: flex; gap: 25px; align-items: center; }
+        .search-container { position: relative; }
+
+        #search-box {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 8px 15px 8px 40px;
+            color: white;
+            font-size: 14px;
+            width: 250px;
+            transition: all 0.3s ease;
+        }
+        #search-box::placeholder { color: rgba(255, 255, 255, 0.7); }
+        #search-box:focus { outline: none; background-color: rgba(255, 255, 255, 0.3); box-shadow: 0 0 10px rgba(79, 198, 224, 0.5); }
+        
+        .search-container .fa-search { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.7); }
+        
+        #search-box.not-found, #search-location-input.not-found { border-color: var(--danger); animation: shake 0.5s; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        
+        .controls-panel {
+            grid-area: controls;
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            overflow-y: auto;
+            max-height: 85vh;
+        }
+
+        .control-section { border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+        .control-section:last-of-type { border-bottom: none; padding-bottom: 0; }
+        .control-section h3 { font-size: 18px; color: var(--secondary); margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+        
+        .visualization-panel { grid-area: visualization; display: grid; grid-template-rows: auto 1fr; gap: 20px; }
+        .map-container { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.08); height: 500px; position: relative; overflow: hidden; }
+        
+        .map-overlay { position: absolute; top: 20px; right: 20px; background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 15px; z-index: 1000; box-shadow: 0 3px 10px rgba(0,0,0,0.1); max-width: 250px; }
+        .map-overlay h4 { margin-bottom: 10px; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+        .map-overlay-item { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+        .map-overlay-item span:last-child { font-weight: 500; color: var(--secondary); }
+        
+        #map { height: 100%; border-radius: 8px; background: #e8f4fd; }
+        
+        .chart-container { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.08); height: 300px; }
+        .metrics-panel { grid-area: metrics; background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.08); }
+        
+        h2 { color: var(--secondary); margin-bottom: 20px; font-weight: 600; font-size: 22px; display: flex; align-items: center; gap: 10px; }
+        h2 i { background: var(--accent-light); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--secondary); font-size: 18px; }
+        
+        .control-group { margin-bottom: 15px; }
+        .control-group label { display: block; margin-bottom: 10px; font-weight: 500; color: var(--secondary); display: flex; justify-content: space-between; }
+        .control-group label span:last-child { color: var(--primary); font-weight: 600; }
+        
+        input[type="range"] { width: 100%; height: 8px; border-radius: 4px; background: linear-gradient(to right, var(--accent-light), var(--accent)); outline: none; -webkit-appearance: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--primary); cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+        
+        button { background: linear-gradient(120deg, var(--primary), var(--primary-dark)); color: white; border: none; padding: 12px 15px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 500; transition: all 0.3s; box-shadow: 0 4px 8px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; gap: 8px; }
+        button:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.2); background: linear-gradient(120deg, var(--primary-dark), var(--secondary)); }
+        button:disabled { background: var(--border); cursor: not-allowed; transform: none; box-shadow: none; }
+        
+        #pause-btn { background: linear-gradient(120deg, var(--warning), #ff9800); }
+        #reset-btn { background: linear-gradient(120deg, var(--danger), #e53935); }
+        #optimize-btn { background: linear-gradient(120deg, var(--success), #2e7d32); grid-column: span 2; }
+        
+        .status-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .status-box { background: var(--card-bg); border-radius: 8px; padding: 15px; max-height: 250px; overflow-y: auto;}
+        .status-box h3 { color: var(--secondary); font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        
+        .status-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 14px; }
+        .status-item:last-child { border-bottom: none; }
+        .status-item .status-value { font-weight: 500; color: var(--primary); }
+        .status-item .status-online { color: var(--success); }
+        .status-item .status-offline { color: var(--danger); }
+        
+        .status-indicator { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; }
+        .status-active { background-color: var(--success); box-shadow: 0 0 8px var(--success); }
+        .status-paused { background-color: var(--warning); box-shadow: 0 0 8px var(--warning); }
+        .status-inactive { background-color: var(--danger); box-shadow: 0 0 8px var(--danger); }
+        
+        .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+        .legend-item { display: flex; align-items: center; gap: 5px; font-size: 13px; }
+        .legend-color { width: 16px; height: 16px; border-radius: 3px; }
+        
+        .road-low { background: #4fc6e0; } .road-medium { background: #f9d64f; } .road-high { background: #f97c4f; }
+        
+        select, .control-section input[type="text"], .control-section input[type="password"] {
+            width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);
+            background-color: #fdfdfd; font-size: 14px; margin-bottom: 10px; color: var(--text);
+        }
+        .api-buttons { display: flex; gap: 10px; }
+        .api-buttons button { flex: 1; }
+        #save-api-btn { background: linear-gradient(120deg, #6c757d, #5a6268); }
+        
+        /* New Agent Marker Styles */
+        .agent-marker .agent-icon {
+            font-size: 16px; color: white; background-color: var(--agent-color);
+            width: 26px; height: 26px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 0 2px white, 0 2px 5px rgba(0,0,0,0.4);
+            transition: transform 0.2s ease-in-out;
+        }
+        .agent-marker.state-optimizing .agent-icon { animation: pulse 1.2s infinite ease-in-out; }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(230, 126, 34, 0.7), 0 0 0 2px white; }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(230, 126, 34, 0), 0 0 0 3px white; }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(230, 126, 34, 0), 0 0 0 2px white; }
+        }
+
+        @media (max-width: 1100px) { .dashboard { grid-template-columns: 1fr; grid-template-areas: "header" "controls" "visualization" "metrics"; } }
+        @media (max-width: 768px) { .header { flex-direction: column; gap: 15px; text-align: center; } .status-container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <div class="header">
+        <div>
+            <h1><i class="fas fa-traffic-light"></i> Traffic Grid Dashboard</h1>
+            <div><span class="status-indicator status-active"></span><span id="status-text">Simulation Running</span></div>
+        </div>
+        <div class="header-info">
+            <div class="search-container"><i class="fas fa-search"></i><input type="search" id="search-box" placeholder="Search city (e.g., London)..."></div>
+            <div>Step: <span id="step-count">0</span></div>
+            <div>Task Agents: <span id="agent-count-header">20</span></div>
+        </div>
+    </div>
+
+    <div class="controls-panel">
+        <div class="control-section">
+            <h3><i class="fas fa-server"></i> Traffic API</h3>
+            <label for="api-select">API Provider</label>
+            <select id="api-select"><option>Google Maps Traffic API</option><option>HERE Traffic API</option><option>TomTom Traffic API</option></select>
+            <label for="api-key">Enter your API Key</label>
+            <input type="password" id="api-key" placeholder="Supports major traffic APIs">
+            <div class="api-buttons">
+                <button id="test-api-btn"><i class="fas fa-check"></i> Test</button>
+                <button id="save-api-btn"><i class="fas fa-save"></i> Save</button>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h3><i class="fas fa-map-marked-alt"></i> Map Controls</h3>
+            <label for="search-location-input">Search Location</label>
+            <input type="text" id="search-location-input" placeholder="e.g., Tokyo">
+            <label for="map-type">Map Type</label>
+            <select id="map-type">
+                <option value="street">Street</option><option value="satellite">Satellite</option><option value="dark">Dark</option>
+            </select>
+        </div>
+
+        <div class="control-section">
+            <h3><i class="fas fa-cogs"></i> Simulation Controls</h3>
+            <div class="control-group"><label>Simulation Speed <span id="speed-value">10x</span></label><input type="range" id="simulation-speed" min="1" max="20" value="10"></div>
+            <div class="control-group"><label>Vehicle Density <span id="density-value">25</span></label><input type="range" id="car-density" min="5" max="80" value="25"></div>
+            <div class="control-group"><label>Agent Count <span id="agent-value">20</span></label><input type="range" id="agent-count-slider" min="5" max="50" value="20"></div>
+            <div class="btn-group">
+                <button id="start-btn"><i class="fas fa-play"></i> Start</button><button id="pause-btn" disabled><i class="fas fa-pause"></i> Pause</button>
+                <button id="reset-btn"><i class="fas fa-redo"></i> Reset</button><button id="optimize-btn"><i class="fas fa-bolt"></i> Optimize Now</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="visualization-panel">
+        <div class="map-container">
+            <h2><i class="fas fa-border-all"></i> Traffic Grid Visualization</h2>
+            <div id="map"></div>
+            <div class="map-overlay">
+                <h4><i class="fas fa-info-circle"></i> Grid Status</h4>
+                <div class="map-overlay-item"><span>Avg. Delay (s/veh):</span><span id="overlay-delay">0.0</span></div>
+                <div class="map-overlay-item"><span>Avg. Queue (veh):</span><span id="overlay-queue">0.0</span></div>
+                <div class="map-overlay-item"><span>Throughput (veh/hr):</span><span id="overlay-throughput">0</span></div>
+                <div class="map-overlay-item"><span>Improvement:</span><span id="overlay-improvement">0.0%</span></div>
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color road-low"></div><span>Low</span></div>
+                    <div class="legend-item"><div class="legend-color road-medium"></div><span>Med</span></div>
+                    <div class="legend-item"><div class="legend-color road-high"></div><span>High</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background:var(--agent-color); border-radius:50%;"></div><span>Agent</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="chart-container">
+            <h2><i class="fas fa-chart-line"></i> Traffic Metrics Over Time</h2><canvas id="history-chart"></canvas>
+        </div>
+    </div>
+
+    <div class="metrics-panel">
+        <div class="status-container">
+            <div class="status-box"><h3><i class="fas fa-traffic-light"></i> Traffic Light Status</h3><div id="traffic-light-list"><div class="status-item"><span>Initializing...</span><span>--s</span></div></div></div>
+            <div class="status-box"><h3><i class="fas fa-sitemap"></i> Multi-Agent System</h3><div id="system-status-list">
+                <div class="status-item"><span>API Service</span><span id="api-service-status" class="status-value status-offline">Offline</span></div>
+                <div class="status-item"><span>Data Refresh</span><span id="data-refresh-status" class="status-value">Idle</span></div>
+                <div class="status-item"><span>Task Allocation</span><span id="task-allocation-status" class="status-value">Idle</span></div>
+                <div class="status-item"><span>Agent Status</span><span id="agent-summary-status" class="status-value">0 Idle / 0 Active</span></div>
+            </div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- MAP & TILE LAYERS ---
+    const map = L.map('map').setView([51.505, -0.09], 13);
+    const tileLayers = {
+        street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }),
+        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri' }),
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CartoDB' })
+    };
+    let currentTileLayer = tileLayers.street.addTo(map);
+
+    // --- GLOBAL SIMULATION VARIABLES ---
+    let trafficMarkers = [], agentPool = [], roadLayers = [], vehicles = [];
+    let searchMarker = null, simulationInterval = null;
+    let baselineCongestion = null;
+
+    // --- SIMULATION & MAP CLEANUP ---
+    function clearSimulation() {
+        [...trafficMarkers, ...agentPool.map(a => a.marker), ...roadLayers, ...vehicles.map(v => v.marker)].forEach(layer => map.removeLayer(layer));
+        if (searchMarker) map.removeLayer(searchMarker);
+        trafficMarkers = [], agentPool = [], roadLayers = [], vehicles = [], searchMarker = null;
+    }
+
+    // --- DYNAMIC ROAD NETWORK GENERATION ---
+    function generateRandomRoadNetwork(bounds, intersectionCount = 50, roadCount = 60) {
+        const intersections = [];
+        const roads = [];
+        const existingCoords = new Set();
+        const minLat = bounds.getSouth(), maxLat = bounds.getNorth();
+        const minLng = bounds.getWest(), maxLng = bounds.getEast();
+
+        // Generate intersection points
+        for (let i = 0; i < intersectionCount; i++) {
+            const lat = minLat + Math.random() * (maxLat - minLat);
+            const lng = minLng + Math.random() * (maxLng - minLng);
+            const coordKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+
+            if (!existingCoords.has(coordKey)) {
+                const cycle = 30 + Math.floor(Math.random() * 31);
+                intersections.push({ id: i, lat, lng, name: `Junction ${i + 1}`, congestion: Math.random() * 0.8, cycleDuration: cycle, timeRemaining: cycle, isTargeted: false });
+                existingCoords.add(coordKey);
+            }
+        }
+
+        if (intersections.length < 2) return { intersections: [], roads: [] };
+
+        // Create roads by connecting random intersections
+        for (let i = 0; i < roadCount; i++) {
+            let idx1 = Math.floor(Math.random() * intersections.length);
+            let idx2 = Math.floor(Math.random() * intersections.length);
+            if (idx1 !== idx2) {
+                const startNode = intersections[idx1], endNode = intersections[idx2];
+                roads.push({ start: [startNode.lat, startNode.lng], end: [endNode.lat, endNode.lng], congestion: Math.random() * 0.7 });
+            }
+        }
+        return { intersections, roads };
+    }
+    
+    function generateVehicles(allRoads) { if(allRoads.length === 0) return []; const v = []; const vc = parseInt(document.getElementById('car-density').value, 10); for(let i=0; i<vc; i++){ const r = allRoads[Math.floor(Math.random()*allRoads.length)]; const p = Math.random(); const lat = r.start[0]+(r.end[0]-r.start[0])*p; const lng = r.start[1]+(r.end[1]-r.start[1])*p; const m = L.marker([lat,lng],{icon:L.divIcon({className:'vehicle-marker',html:`<div style="background-color:#4a6fa5; width:8px; height:8px; border-radius:50%;"></div>`,iconSize:[10,10]})}).addTo(map); v.push({marker:m,roadData:r,progress:p,direction:Math.random()>0.5?1:-1});} return v; }
+    
+    function generateTaskAgents() {
+        agentPool.forEach(a => map.removeLayer(a.marker)); agentPool = [];
+        const agentCount = parseInt(document.getElementById('agent-count-slider').value, 10);
+        document.getElementById('agent-count-header').textContent = agentCount;
+        const center = map.getCenter();
+        const radius = map.getBounds().getEast() - map.getBounds().getWest();
+
+        for (let i = 0; i < agentCount; i++) {
+            const lat = center.lat + (Math.random() - 0.5) * radius * 0.5;
+            const lng = center.lng + (Math.random() - 0.5) * radius * 0.5;
+            const agentMarker = L.marker([lat, lng], {
+                icon: L.divIcon({ className: 'agent-marker', html: `<div class="agent-icon"><i class="fas fa-microchip"></i></div>`, iconSize: [26, 26] })
+            }).addTo(map);
+            agentPool.push({ marker: agentMarker, state: 'idle', target: null, workTimer: 0 });
+        }
+    }
+
+    // --- AGENT & TASK ALLOCATION LOGIC ---
+    function allocateTasks() {
+        const idleAgents = agentPool.filter(a => a.state === 'idle');
+        if (idleAgents.length === 0) return;
+
+        const congestedIntersections = trafficMarkers
+            .map(m => m.intersectionData)
+            .filter(i => i.congestion > 0.65 && !i.isTargeted)
+            .sort((a, b) => b.congestion - a.congestion);
+        
+        if (congestedIntersections.length === 0) return;
+
+        document.getElementById('task-allocation-status').textContent = "Dispatching...";
+        for (let i = 0; i < Math.min(idleAgents.length, congestedIntersections.length); i++) {
+            const agent = idleAgents[i];
+            const task = congestedIntersections[i];
+            agent.state = 'traveling';
+            agent.target = task;
+            task.isTargeted = true;
+        }
+    }
+    
+    function updateAgents() {
+        agentPool.forEach(agent => {
+            const markerDiv = agent.marker.getElement();
+            if (agent.state === 'traveling') {
+                const targetPos = L.latLng(agent.target.lat, agent.target.lng);
+                const currentPos = agent.marker.getLatLng();
+                const distance = currentPos.distanceTo(targetPos);
+                
+                if (distance < 10) { // Arrived at destination
+                    agent.state = 'optimizing';
+                    agent.workTimer = 5; // Takes 5 steps to optimize
+                    if (markerDiv) markerDiv.classList.add('state-optimizing');
+                } else { // Move towards target
+                    const newLat = currentPos.lat + (targetPos.lat - currentPos.lat) * 0.15;
+                    const newLng = currentPos.lng + (targetPos.lng - currentPos.lng) * 0.15;
+                    agent.marker.setLatLng([newLat, newLng]);
+                }
+            } else if (agent.state === 'optimizing') {
+                agent.workTimer--;
+                if (agent.workTimer <= 0) {
+                    const intersectionMarker = trafficMarkers.find(m => m.intersectionData === agent.target);
+                    if(intersectionMarker) {
+                        agent.target.congestion *= 0.3; // Significantly reduce congestion
+                        intersectionMarker.setStyle({ fillColor: '#4CAF50' }); // Visually show improvement
+                    }
+                    if (markerDiv) markerDiv.classList.remove('state-optimizing');
+                    agent.target.isTargeted = false;
+                    agent.state = 'idle';
+                    agent.target = null;
+                }
+            }
+        });
+    }
+
+    // --- SIMULATION UPDATE FUNCTIONS ---
+    function updateVehicles() { vehicles.forEach(v => { v.progress += 0.01 * v.direction; if (v.progress > 1 || v.progress < 0) { v.direction *= -1; v.progress = Math.max(0, Math.min(1, v.progress)); } const lat = v.roadData.start[0] + (v.roadData.end[0] - v.roadData.start[0]) * v.progress; const lng = v.roadData.start[1] + (v.roadData.end[1] - v.roadData.start[1]) * v.progress; v.marker.setLatLng([lat, lng]); }); }
+    
+    // --- VISUALIZATION & UI UPDATE ---
+    function drawTrafficVisualization() {
+        clearSimulation();
+        resetChart();
+        baselineCongestion = null;
+        
+        const { intersections, roads: generatedRoads } = generateRandomRoadNetwork(map.getBounds());
+        
+        generatedRoads.forEach(road => {
+            const color = road.congestion < 0.4 ? '#4fc6e0' : road.congestion < 0.6 ? '#f9d64f' : '#f97c4f';
+            const polyline = L.polyline([road.start, road.end], { color, weight: 4 + road.congestion * 8, opacity: 0.8 }).addTo(map);
+            roadLayers.push(polyline);
+        });
+        
+        intersections.forEach(inter => {
+            const fillColor = inter.congestion < 0.4 ? '#4CAF50' : inter.congestion < 0.6 ? '#FFC107' : '#F44336';
+            const marker = L.circleMarker([inter.lat, inter.lng], { radius: 8, color: '#166088', fillColor, fillOpacity: 0.9, weight: 1 }).addTo(map);
+            marker.intersectionData = inter;
+            marker.bindPopup(`<b>${inter.name}</b><br>Congestion: ${Math.round(inter.congestion * 100)}%`);
+            trafficMarkers.push(marker);
+        });
+        
+        vehicles = generateVehicles(generatedRoads);
+        generateTaskAgents();
+        updateTrafficLightStatus();
+    }
+    
+    const ctx = document.getElementById('history-chart').getContext('2d');
+    const historyChart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [ 
+        { label: 'Avg. Delay (s)', data: [], borderColor: '#FFC107', backgroundColor: 'rgba(255, 193, 7, 0.1)', borderWidth: 2, tension: 0.3, fill: true }, 
+        { label: 'Throughput (veh/hr)', data: [], borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)', borderWidth: 2, tension: 0.3, fill: true } 
+    ]}, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 500 } }});
+
+    function resetChart() { historyChart.data.labels = []; historyChart.data.datasets.forEach(d => d.data = []); historyChart.update(); }
+
+    function updateMetricsAndChart() {
+        if (trafficMarkers.length === 0) return;
+        const avgCongestion = (trafficMarkers.reduce((a, m) => a + m.intersectionData.congestion, 0) / trafficMarkers.length) * 100;
+        
+        if (baselineCongestion === null && avgCongestion > 0) baselineCongestion = avgCongestion;
+        
+        const avgDelay = (avgCongestion * 1.2 + Math.random() * 5);
+        const avgQueue = (avgCongestion * 0.15 + Math.random());
+        const throughput = Math.round((100 - avgCongestion) * 18 + Math.random() * 150);
+        const improvement = baselineCongestion > 0 ? (((baselineCongestion - avgCongestion) / baselineCongestion) * 100) : 0.0;
+        
+        document.getElementById('overlay-delay').textContent = avgDelay.toFixed(1);
+        document.getElementById('overlay-queue').textContent = avgQueue.toFixed(1);
+        document.getElementById('overlay-throughput').textContent = throughput;
+        document.getElementById('overlay-improvement').textContent = `${Math.max(0, improvement).toFixed(1)}%`;
+
+        if (historyChart.data.labels.length > 20) { historyChart.data.labels.shift(); historyChart.data.datasets.forEach(d => d.data.shift()); }
+        historyChart.data.labels.push(document.getElementById('step-count').textContent);
+        historyChart.data.datasets[0].data.push(avgDelay);
+        historyChart.data.datasets[1].data.push(throughput);
+        historyChart.update();
+    }
+
+    function updateTrafficLightStatus() {
+        const listEl = document.getElementById('traffic-light-list');
+        listEl.innerHTML = '';
+        trafficMarkers.slice(0, 10).forEach(marker => {
+            const data = marker.intersectionData;
+            data.timeRemaining = (data.timeRemaining - 1 + data.cycleDuration) % data.cycleDuration;
+            const item = document.createElement('div');
+            item.className = 'status-item';
+            item.innerHTML = `<span>${data.name}</span><span class="status-value">${data.timeRemaining}s</span>`;
+            listEl.appendChild(item);
+        });
+    }
+    
+    function updateSystemStatus() {
+        const step = parseInt(document.getElementById('step-count').textContent);
+        document.getElementById('data-refresh-status').textContent = (step % 15 < 2) ? 'Syncing...' : 'Active';
+        if (document.getElementById('task-allocation-status').textContent === "Dispatching...") {
+             setTimeout(() => document.getElementById('task-allocation-status').textContent = 'Monitoring', 500);
+        } else if (step % 25 == 0) { 
+            document.getElementById('task-allocation-status').textContent = 'Idle';
+        }
+
+        const idleCount = agentPool.filter(a => a.state === 'idle').length;
+        const activeCount = agentPool.length - idleCount;
+        document.getElementById('agent-summary-status').textContent = `${idleCount} Idle / ${activeCount} Active`;
+    }
+
+    // --- UI & CONTROL LISTENERS ---
+    document.getElementById('map-type').addEventListener('change', function() { map.removeLayer(currentTileLayer); currentTileLayer = tileLayers[this.value]; map.addLayer(currentTileLayer); });
+    document.getElementById('test-api-btn').addEventListener('click', function() { const btn = this; btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Testing...`; btn.disabled = true; setTimeout(() => { const success = Math.random() > 0.3; const s = document.getElementById('api-service-status'); s.textContent = success ? 'Online' : 'Offline'; s.className = `status-value ${success ? 'status-online' : 'status-offline'}`; btn.innerHTML = `<i class="fas fa-check"></i> Test`; btn.disabled = false; }, 1500); });
+    document.getElementById('save-api-btn').addEventListener('click', function() { localStorage.setItem('trafficApiKey', document.getElementById('api-key').value); this.innerHTML = `<i class="fas fa-check-circle"></i> Saved!`; setTimeout(() => { this.innerHTML = `<i class="fas fa-save"></i> Save`; }, 2000); });
+    document.getElementById('api-key').value = localStorage.getItem('trafficApiKey') || '';
+
+    const searchBoxHeader = document.getElementById('search-box');
+    const searchBoxControls = document.getElementById('search-location-input');
+    searchBoxHeader.addEventListener('input', () => searchBoxControls.value = searchBoxHeader.value);
+    searchBoxControls.addEventListener('input', () => searchBoxHeader.value = searchBoxControls.value);
+    
+    searchBoxHeader.addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(searchBoxHeader); });
+    searchBoxControls.addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(searchBoxControls); });
+
+    document.getElementById('simulation-speed').addEventListener('input', function() { document.getElementById('speed-value').textContent = `${this.value}x`; startSimulationLoop(); });
+    document.getElementById('car-density').addEventListener('input', function() { document.getElementById('density-value').textContent = this.value; });
+    document.getElementById('agent-count-slider').addEventListener('input', function() { document.getElementById('agent-value').textContent = this.value; });
+    
+    document.getElementById('start-btn').addEventListener('click', function() { this.disabled = true; document.getElementById('pause-btn').disabled = false; document.getElementById('status-text').textContent = 'Simulation Running'; document.querySelector('.status-indicator').className = 'status-indicator status-active'; });
+    document.getElementById('pause-btn').addEventListener('click', function() { this.disabled = true; document.getElementById('start-btn').disabled = false; document.getElementById('status-text').textContent = 'Simulation Paused'; document.querySelector('.status-indicator').className = 'status-indicator status-paused'; });
+    document.getElementById('reset-btn').addEventListener('click', () => { document.getElementById('step-count').textContent = 0; drawTrafficVisualization(); });
+    
+    document.getElementById('optimize-btn').addEventListener('click', function() {
+        this.innerHTML = '<i class="fas fa-cog fa-spin"></i> Optimizing...';
+        // Dispatch all idle agents to the most congested spots as an immediate action
+        allocateTasks(); 
+        setTimeout(() => { this.innerHTML = `<i class="fas fa-bolt"></i> Optimize Now`; }, 1000);
+    });
+
+    // --- SMART SEARCH (LOCATION ONLY) ---
+    async function handleSearch(inputElement) {
+        const query = inputElement.value.trim(); if (!query) return;
+        inputElement.classList.remove('not-found');
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            if (data && data.length > 0) {
+                const { lat, lon, display_name } = data[0];
+                const latLng = L.latLng(lat, lon);
+                map.flyTo(latLng, 13, { duration: 1.5 });
+                setTimeout(() => {
+                    document.getElementById('step-count').textContent = 0;
+                    drawTrafficVisualization();
+                    if (searchMarker) map.removeLayer(searchMarker);
+                    searchMarker = L.marker(latLng).addTo(map).bindPopup(`<b>${display_name.split(',')[0]}</b>`).openPopup();
+                }, 1600);
+            } else { inputElement.classList.add('not-found'); }
+        } catch (error) { console.error("Search error:", error); inputElement.classList.add('not-found'); }
+    }
+
+    // --- MAIN SIMULATION LOOP ---
+    function startSimulationLoop() {
+        if (simulationInterval) clearInterval(simulationInterval);
+        const speed = parseInt(document.getElementById('simulation-speed').value, 10);
+        const intervalTime = 2000 / speed; // Slightly slowed down for better visualization of agents
+        simulationInterval = setInterval(() => {
+            if (document.getElementById('status-text').textContent === 'Simulation Running') {
+                const stepCount = document.getElementById('step-count');
+                stepCount.textContent = parseInt(stepCount.textContent) + 1;
+                
+                updateVehicles();
+                if(parseInt(stepCount.textContent) % 5 === 0) { // Allocate tasks periodically
+                    allocateTasks();
+                }
+                updateAgents();
+
+                updateMetricsAndChart();
+                updateTrafficLightStatus();
+                updateSystemStatus();
+            }
+        }, intervalTime);
+    }
+    
+    // --- INITIALIZE ---
+    startSimulationLoop();
+    document.getElementById('start-btn').click();
+    setTimeout(() => drawTrafficVisualization(), 500);
+</script>
+</body>
+</html>

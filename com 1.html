@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Optimization Approaches Comparison</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #2c3e50; --secondary: #34495e; --accent: #3498db;
+            --background: #ecf0f1; --card-bg: #ffffff; --text: #2c3e50;
+            --light-text: #7f8c8d; --border: #bdc3c7; 
+            --baseline: #7f8c8d; --multi-agent: #e74c3c; --neural: #3498db; --swarm: #2ecc71;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .dashboard {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr;
+            grid-template-areas:
+                "header"
+                "content";
+            gap: 20px;
+        }
+        
+        .header {
+            grid-area: header;
+            background: linear-gradient(120deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+            color: white;
+            text-align: center;
+        }
+        
+        .header h1 { 
+            font-weight: 700; 
+            font-size: 32px; 
+            letter-spacing: 0.5px; 
+            margin-bottom: 10px; 
+        }
+        
+        .header p { 
+            font-size: 16px; 
+            opacity: 0.9; 
+            max-width: 800px; 
+            margin: 0 auto; 
+        }
+        
+        .content {
+            grid-area: content;
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr;
+            grid-template-areas:
+                "chart"
+                "info";
+            gap: 20px;
+        }
+        
+        .chart-container {
+            grid-area: chart;
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            height: 450px;
+            position: relative;
+        }
+        
+        .info-panel {
+            grid-area: info;
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .info-box {
+            padding: 15px;
+            border-left: 4px solid;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        
+        .info-box.baseline { border-color: var(--baseline); }
+        .info-box.multi-agent { border-color: var(--multi-agent); }
+        .info-box.neural { border-color: var(--neural); }
+        .info-box.swarm { border-color: var(--swarm); }
+        
+        .info-box h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .info-box p {
+            font-size: 14px;
+            color: var(--light-text);
+            line-height: 1.5;
+        }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+        }
+        
+        .baseline-color { background: var(--baseline); }
+        .multi-agent-color { background: var(--multi-agent); }
+        .neural-color { background: var(--neural); }
+        .swarm-color { background: var(--swarm); }
+        
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+            
+            .info-panel {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1><i class="fas fa-traffic-light"></i> Traffic Optimization Approaches Comparison</h1>
+            <p>Performance analysis of different  for traffic optimization over time</p>
+        </div>
+        
+        <div class="content">
+            <div class="chart-container">
+                <canvas id="traffic-chart"></canvas>
+            </div>
+            
+            <div class="info-panel">
+                <div class="info-box baseline">
+                    <h3><i class="fas fa-road"></i> Baseline (General Traffic)</h3>
+                    <p>Standard traffic flow without any intelligent optimization systems. Serves as the control for comparing the effectiveness of other approaches.</p>
+                </div>
+                
+                <div class="info-box multi-agent">
+                    <h3><i class="fas fa-microchip"></i> Multi-Agent System (MAS)</h3>
+                    <p>Distributed autonomous agents that cooperate to optimize traffic flow. Each agent can monitor and respond to local traffic conditions.</p>
+                </div>
+                
+                <div class="info-box neural">
+                    <h3><i class="fas fa-brain"></i> Swarm Intelligence(CI)</h3>
+                    <p>Computational intelligence approach using neural networks to predict and optimize traffic patterns based on historical and real-time data.</p>
+                </div>
+                
+                <div class="info-box swarm">
+                    <h3><i class="fas fa-bug"></i> Neural Network (SI)</h3>
+                    <p>Decentralized, self-organized system inspired by collective behavior of social insects. Uses simple rules to achieve complex optimization.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize the traffic chart
+        const ctx = document.getElementById('traffic-chart').getContext('2d');
+        const trafficChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 20}, (_, i) => i + 1),
+                datasets: [
+                    {
+                        label: 'Baseline (general traffic)',
+                        data: [72, 70, 73, 75, 74, 76, 78, 77, 79, 80, 81, 82, 83, 84, 85, 84, 83, 82, 81, 80],
+                        backgroundColor: 'rgba(127, 140, 141, 0.1)',
+                        borderColor: 'rgba(127, 140, 141, 1)',
+                        pointBackgroundColor: 'rgba(127, 140, 141, 1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Multi-Agent System (MAS)',
+                        data: [70, 65, 60, 58, 55, 52, 50, 48, 45, 43, 40, 38, 36, 35, 34, 33, 32, 31, 30, 29],
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        borderColor: 'rgba(231, 76, 60, 1)',
+                        pointBackgroundColor: 'rgba(231, 76, 60, 1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Neural Network (CI)',
+                        data: [72,68, 62, 56, 50, 45, 42, 38, 35, 33, 31, 29, 28, 27, 26, 25, 24, 23, 22, 21],
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        pointBackgroundColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Swarm Intelligence (SI)',
+                        data: [71, 64, 57, 51, 46, 42, 39, 36, 34, 32, 30, 28, 27, 26, 25, 24, 23, 22, 21, 19],
+                        backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                        borderColor: 'rgba(46, 204, 113, 1)',
+                        pointBackgroundColor: 'rgba(46, 204, 113, 1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        min: 0,
+                        max: 85,
+                        title: {
+                            display: true,
+                            text: 'Average Congestion (%)',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Simulation Time (Steps)',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            boxWidth: 15,
+                            padding: 15,
+                            font: {
+                                size: 13
+                            }
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        padding: 10,
+                        cornerRadius: 5
+                    }
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeOutQuart'
+                }
+            }
+        });
+
+        // Add legend
+        const legendContainer = document.createElement('div');
+        legendContainer.className = 'legend';
+        legendContainer.innerHTML = `
+            <div class="legend-item"><div class="legend-color baseline-color"></div><span>Baseline</span></div>
+            <div class="legend-item"><div class="legend-color multi-agent-color"></div><span>Multi-Agent System</span></div>
+            <div class="legend-item"><div class="legend-color neural-color"></div><span>Neural Network</span></div>
+            <div class="legend-item"><div class="legend-color swarm-color"></div><span>Swarm Intelligence</span></div>
+        `;
+        document.querySelector('.chart-container').appendChild(legendContainer);
+    </script>
+</body>
+</html>
